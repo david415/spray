@@ -1,0 +1,7 @@
+[package]
+name = "spray"
+version = "0.1.0"
+authors = ["user"]
+
+[dependencies.pnet]
+git = "https://github.com/libpnet/libpnet.git"
