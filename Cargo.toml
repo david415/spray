@@ -4,4 +4,10 @@ version = "0.1.0"
 authors = ["user"]
 
 [dependencies.pnet]
-git = "https://github.com/libpnet/libpnet.git"
+#git = "https://github.com/david415/libpnet.git"
+branch = "90.add-tcp-packet.1"
+path = "../libpnet"
+
+[dependencies.getopts]
+git = "https://github.com/rust-lang/getopts.git"
+

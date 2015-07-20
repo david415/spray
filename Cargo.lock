@@ -2,7 +2,8 @@
 name = "spray"
 version = "0.1.0"
 dependencies = [
- "pnet 0.0.1 (git+https://github.com/libpnet/libpnet.git)",
+ "getopts 0.2.11 (git+https://github.com/rust-lang/getopts.git)",
+ "pnet 0.0.1",
 ]
 
 [[package]]
@@ -14,9 +15,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "getopts"
+version = "0.2.11"
+source = "git+https://github.com/rust-lang/getopts.git#e0ba447b49ffe3e187381de949a215a0c7ffe4f7"
+dependencies = [
+ "log 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
 name = "libc"
 version = "0.1.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
+
+[[package]]
+name = "log"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+dependencies = [
+ "libc 0.1.8 (registry+https://github.com/rust-lang/crates.io-index)",
+]
 
 [[package]]
 name = "memchr"
@@ -29,15 +46,13 @@ dependencies = [
 [[package]]
 name = "pnet"
 version = "0.0.1"
-source = "git+https://github.com/libpnet/libpnet.git#9a53065be5e15d4f95d8f3311b078e9e4f512e73"
 dependencies = [
- "pnet_macros 0.0.1 (git+https://github.com/libpnet/libpnet.git)",
+ "pnet_macros 0.0.1",
 ]
 
 [[package]]
 name = "pnet_macros"
 version = "0.0.1"
-source = "git+https://github.com/libpnet/libpnet.git#9a53065be5e15d4f95d8f3311b078e9e4f512e73"
 dependencies = [
  "regex 0.1.40 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
