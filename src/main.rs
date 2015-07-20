@@ -3,11 +3,14 @@
 // author David Stainton
 // copyright 2015
 
+// XXX correct?
+#![feature(ip_addr)]
+
 extern crate pnet;
 extern crate getopts;
 
 use std::env;
-use std::net::ip::IpAddr::{V4};
+use std::net::{IpAddr};
 use std::net::Ipv4Addr;
 use getopts::Options;
 
@@ -28,7 +31,7 @@ use pnet::transport::TransportChannelType::{Layer3};
 
 
 fn print_usage(program: &str, opts: Options) {
-    let brief = format!("Usage: {} NETWORK_DEVICE [-r|--rawsocket - use Linux raw socket]", program);
+    let brief = format!("Usage: {} - composes and sends a single packet", program);
     print!("{}", opts.usage(&brief));
 }
 
@@ -38,6 +41,7 @@ fn main() {
 
     let mut opts = Options::new();
     opts.optflag("r", "rawsocket", "send via ip Linux raw sock");
+    opts.optopt("e", "ethernet", "send via ethernet", "NETWORK_INTERFACE");
     opts.optflag("h", "help", "print this help menu");
     let matches = match opts.parse(&args[1..]) {
         Ok(m) => { m }
@@ -52,7 +56,7 @@ fn main() {
     if matches.opt_present("rawsocket") {
         compose_on_linux_raw_socket();
     } else {
-        compose_on_ethernet();
+        compose_on_ethernet(matches.opt_str("ethernet").unwrap());
     }
 }
 
@@ -122,16 +126,14 @@ fn compose_on_linux_raw_socket() {
         ip_header.set_checksum(imm_header);
 
         let immutable_ip_header = ip_header.to_immutable();
-        match tx.send_to(&immutable_ip_header, V4(ipv4_destination)) {
+        match tx.send_to(immutable_ip_header, IpAddr::V4(ipv4_destination)) {
             Ok(_) => println!("packet sent!"),
             Err(e) => panic!("oh no panic {}", e)
         }
     }
 }
 
-fn compose_on_ethernet() {
-
-    let interface_name = env::args().nth(1).unwrap();
+fn compose_on_ethernet(interface_name: String) {
     let interface_names_match = |iface: &NetworkInterface| iface.name == interface_name;
 
     // Find the network interface with the provided name
