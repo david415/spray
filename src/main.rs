@@ -88,7 +88,7 @@ fn compose_on_linux_raw_socket() {
 0000   ad 39 25 c2 ff 3f 6a 16 c9 e8 65 85 80 18 02 ab  .9%..?j...e.....
 0010   19 8f 00 00 01 01 08 0a 03 53 94 ec 03 53 91 0e                                                  .........S...S..
          */
-        let mut tcp_header = MutableTcpPacket::new(&mut packet[14+20..]).unwrap();
+        let mut tcp_header = MutableTcpPacket::new(&mut packet[IPV4_HEADER_LEN..]).unwrap();
         tcp_header.set_source(44342);
         tcp_header.set_destination(9666);
         tcp_header.set_sequence(1337638892);
@@ -109,7 +109,7 @@ fn compose_on_linux_raw_socket() {
 0000   45 00 00 39 fb 1d 40 00 40 06 26 3e 0a 89 02 29  E..9..@.@.&>...)
 0010   0a 89 02 29                                      ...)
          */
-        let mut ip_header = MutableIpv4Packet::new(&mut packet[14..]).unwrap();
+        let mut ip_header = MutableIpv4Packet::new(&mut packet[0..]).unwrap();
         ip_header.set_version(4);
         ip_header.set_header_length(5);
         ip_header.set_dscp(4);
