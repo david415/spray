@@ -15,10 +15,10 @@ use std::net::Ipv4Addr;
 use getopts::Options;
 
 use pnet::util::{NetworkInterface, MacAddr, get_network_interfaces};
-use pnet::datalink::{datalink_channel};
+use pnet::datalink::{datalink_channel, DataLinkSender};
 use pnet::datalink::DataLinkChannelType::{Layer2};
 use pnet::packet::{Packet};
-use pnet::packet::ethernet::{EtherTypes, MutableEthernetPacket};
+use pnet::packet::ethernet::{EtherTypes, EthernetPacket, MutableEthernetPacket};
 use pnet::packet::ip::IpNextHeaderProtocols;
 use pnet::packet::ipv4::{MutableIpv4Packet, checksum};
 use pnet::packet::tcp::{MutableTcpPacket};
@@ -30,19 +30,18 @@ use pnet::transport::TransportChannelType::{Layer3};
 
 struct EthernetPacketProbe {
     interface_name: String,
-    transport_sender: TransportSender,
+    sender: DataLinkSender,
 }
 
 impl EthernetPacketProbe {
     fn new(device_name: String) -> EthernetPacketProbe {
-        let p = EthernetPacketProbe {
-            interface_name: device_name,
-        };
-        p.prepare_ethernet_transport();
+        let mut p: EthernetPacketProbe;
+        p.interface_name = device_name;
+        p.prepare_ethernet_sender();
         return p
     }
 
-    fn prepare_ethernet_transport(&mut self) {
+    fn prepare_ethernet_sender(&mut self) {
         let interface_names_match = |iface: &NetworkInterface| iface.name == self.interface_name;
 
         // Find the network interface with the provided name
@@ -53,29 +52,28 @@ impl EthernetPacketProbe {
             .unwrap();
 
         match datalink_channel(&interface, 4096, 4096, Layer2) {
-            Ok(tx) => self.transport_sender = tx,
+            Ok((tx, _)) => self.sender = tx,
             Err(e) => panic!("An error occurred when creating the datalink channel: {}", e)
         };
     }
 }
 
 struct IpPacketProbe {
-    transport_sender: TransportSender,
-    zero: u8,
+    sender: TransportSender,
 }
 
 // XXX this shouldn't be specific to IPv4
 impl IpPacketProbe {
     fn new() -> IpPacketProbe {
-        let p = IpPacketProbe { zero: 0 };
-        p.prepare_raw_socket_transport();
+        let p: IpPacketProbe;
+        p.prepare_ip_transport();
         return p
     }
 
     fn prepare_ip_transport(&mut self) {
         let protocol = TransportChannelType::Layer3(IpNextHeaderProtocols::Tcp);
         match transport_channel(4096, protocol) {
-            Ok(tx) => self.transport_sender = tx,
+            Ok((tx, _)) => self.sender = tx,
             Err(e) => panic!("An error occurred when creating the transport channel: {}", e)
         };
     }
@@ -86,26 +84,24 @@ trait Sender {
 }
 
 impl Sender for EthernetPacketProbe {
-    // XXX is this function signature going to work?
-    // we could place further contraints on the type of `packet`...
+    // XXX
     fn send_one(&mut self, packet: &Packet) {
-        match self.transport_sender.send_to(packet, IpAddr::V4(packet.destination())) {
-            Ok(_) => println!("packet sent!"),
-            Err(e) => panic!("oh no panic {}", e)
-        }
-    }
-}
-
-impl Sender for IpPacketProbe {
-    // XXX is this function signature going to work?
-    // we could place further contraints on the type of `packet`...
-    fn send_one(&mut self, packet: &Packet) {
-        match self.transport_sender.send_to(&packet, None) {
+        match self.sender.send_to(packet as &EthernetPacket, None) {
             Some(n) => match n {
                 Ok(_) => println!("packet sent!"),
                 Err(e) => panic!("oh no panic {}", e)
             },
             None => panic!("failed to send packet: fufu")
+        }
+    }
+}
+
+impl Sender for IpPacketProbe {
+    // XXX
+    fn send_one(&mut self, packet: &Packet) {
+        match self.sender.send_to(packet, IpAddr::V4(packet.get_destination())) {
+            Ok(_) => println!("packet sent!"),
+            Err(e) => panic!("oh no panic {}", e)
         }
     }
 }
@@ -116,7 +112,7 @@ fn Spray_one<S: Sender>(sender: S, packet: &Packet, repeat: u32) {
     }
 }
 
-fn compose_packet(with_ethernet: bool) -> &mut [u8] {
+fn compose_packet<'a>(with_ethernet: bool) -> &'a Packet {
     const ETHERNET_HEADER_LEN: usize = 14;
     const IPV4_HEADER_LEN: usize = 20;
     const TCP_HEADER_LEN: usize = 20;
@@ -124,16 +120,23 @@ fn compose_packet(with_ethernet: bool) -> &mut [u8] {
     const PAYLOAD_LEN: usize = 4;
 
     let start_ip_offset = 0;
+    let mut packet_buffer: [u8; 0];
+    let ethernet_packet: EthernetPacket;
     if with_ethernet {
-        let mut packet = [0u8; ETHERNET_HEADER_LEN + IPV4_HEADER_LEN + TCP_HEADER_LEN + TCP_OPTIONS_LEN + PAYLOAD_LEN];
-        compose_test_ethernet_header(&mut packet[ETHERNET_HEADER_LEN ..]);
+        packet_buffer = [0u8; ETHERNET_HEADER_LEN + IPV4_HEADER_LEN + TCP_HEADER_LEN + TCP_OPTIONS_LEN + PAYLOAD_LEN];
+        ethernet_packet = compose_test_ethernet_header(&mut packet_buffer[ETHERNET_HEADER_LEN ..]);
         start_ip_offset = ETHERNET_HEADER_LEN;
+    } else {
+        packet_buffer = [0u8; IPV4_HEADER_LEN + TCP_HEADER_LEN + TCP_OPTIONS_LEN + PAYLOAD_LEN];
     }
+    let ip_packet = compose_test_ipv4_header(&mut packet_buffer[start_ip_offset ..]);
+    let tcp_packet = compose_test_tcp_header(&mut packet_buffer[start_ip_offset + IPV4_HEADER_LEN ..]);
 
-    let mut packet = [0u8; IPV4_HEADER_LEN + TCP_HEADER_LEN + TCP_OPTIONS_LEN + PAYLOAD_LEN];
-    compose_test_ipv4_header(&mut packet[start_ip_offset ..]);
-    compose_test_tcp_header(&mut packet[start_ip_offset + IPV4_HEADER_LEN ..]);
-    return packet
+    if with_ethernet {
+        return ethernet_packet;
+    } else {
+        return ip_packet;
+    }
 }
 
 fn compose_test_tcp_header(packet: &mut [u8]) -> &mut MutableTcpPacket {
@@ -214,7 +217,7 @@ fn main() {
     } else {
         IpPacketProbe::new();
     };
-    let packet = compose_packet(!matches.opt_present("rawsocket"));
+    let mut packet = compose_packet(!matches.opt_present("rawsocket"));
     // XXX **this should work** - send the packet 33 times
     Spray_one(probe, packet, 33);
 }
